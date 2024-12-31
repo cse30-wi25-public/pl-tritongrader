@@ -2,6 +2,8 @@ import logging
 import subprocess
 import traceback
 
+from typing import Optional
+
 from tritongrader.test_case.test_case_base import TestCaseBase, TestResultBase
 from tritongrader.runner import CommandRunner
 
@@ -28,13 +30,13 @@ class BasicTestCase(TestCaseBase):
         point_value: float = 1,
         expected_retcode: int = 0,
         timeout: float = TestCaseBase.DEFAULT_TIMEOUT,
-        arm: bool = True,
+        interpreter: Optional[str] = None,
         binary_io: bool = False,
         hidden: bool = False,
     ):
         super().__init__(name, point_value, timeout, hidden)
 
-        self.arm: bool = arm
+        self.interpreter: Optional[str] = interpreter
         self.binary_io: bool = binary_io
 
         self.command: str = command
@@ -49,7 +51,7 @@ class BasicTestCase(TestCaseBase):
             command=self.command,
             capture_output=True,
             timeout=self.timeout,
-            arm=self.arm,
+            interpreter=self.interpreter,
         )
         self.runner.run()
         self.result.passed = self.runner.exit_status == self.expected_retcode

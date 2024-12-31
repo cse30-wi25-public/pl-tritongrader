@@ -24,8 +24,6 @@ class Autograder:
     procedure (e.g. Makefile).
     """
 
-    ARM_COMPILER = "arm-linux-gnueabihf-gcc"
-
     def __init__(
         self,
         name: str,
@@ -34,10 +32,10 @@ class Autograder:
         required_files: List[str] = [],
         supplied_files: List[str] = [],
         verbose_rubric: bool = False,
-        build_command: str = None,
+        build_command: Optional[str] = None,
         compile_points: int = 0,
         missing_files_check: bool = True,
-        arm=True,
+        interpreter: Optional[str] = None,
     ):
         """
         Note: `build_command` must be given for compilation to happen; there is not implicit build
@@ -49,7 +47,7 @@ class Autograder:
         self.tests_path = tests_path
         self.submission_path = submission_path
 
-        self.arm = arm
+        self.interpreter = interpreter
         self.required_files = required_files
         self.supplied_files = supplied_files
         self.verbose_rubric = verbose_rubric
@@ -101,8 +99,8 @@ class Autograder:
             name="Compiling",
             point_value=point_value,
             expected_retcode=0,
-            arm=False,
             timeout=3,
+            interpreter=self.interpreter,
         )
 
     def create_sandbox_directory(self) -> str:

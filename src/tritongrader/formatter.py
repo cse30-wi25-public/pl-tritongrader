@@ -1,6 +1,7 @@
+import os
 import json
 import logging
-from typing import Dict, Callable, List, Union, Iterable
+from typing import Dict, Callable, List, Union, Iterable, Optional
 from difflib import HtmlDiff
 from tritongrader import Autograder
 
@@ -119,9 +120,9 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
                 [
                     "=== Unexpected autograder runtime error!  Please notify your instructors. ===",
                     "=== stdout ===",
-                    test.actual_stdout,
+                    self.cutter(test.actual_stdout),
                     "=== stderr ===",
-                    test.actual_stderr,
+                    self.cutter(test.actual_stderr),
                 ]
             )
         if test.result.timed_out:
@@ -129,9 +130,9 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
                 [
                     f"Test case timed out with limit = {test.timeout}.",
                     "== stdout ==",
-                    test.actual_stdout,
+                    self.cutter(test.actual_stdout),
                     "== stderr ==",
-                    test.actual_stderr,
+                    self.cutter(test.actual_stderr),
                 ]
             )
 
@@ -147,22 +148,22 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
             summary.extend(
                 [
                     "=== expected stdout ===",
-                    test.expected_stdout,
+                    self.cutter(test.expected_stdout),
                     "=== expected stderr ===",
-                    test.expected_stderr,
+                    self.cutter(test.expected_stderr),
                     "=== expected exit status ===",
-                    str(test.exp_exit_status),
+                    self.cutter(str(test.exp_exit_status)),
                 ]
             )
             if not test.result.passed:
                 summary.extend(
                     [
                         "=== your stdout ===",
-                        test.actual_stdout,
+                        self.cutter(test.actual_stdout),
                         "=== your stderr ===",
-                        test.actual_stderr,
+                        self.cutter(test.actual_stderr),
                         "=== your exit status ===",
-                        str(test.exit_status),
+                        self.cutter(str(test.exit_status)),
                     ]
                 )
 
@@ -170,63 +171,48 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
 
     def format_io_test(self, test: IOTestCase):
         return {
-            "output_format":
-                "html" if self.html_diff else "simple_format",
-            "output":
-                (
-                    self.generate_html_diff(test)
-                    if self.html_diff else self.basic_io_output(test)
-                ),
+            "output_format": "html" if self.html_diff else "simple_format",
+            "output": (self.generate_html_diff(test) if self.html_diff else self.basic_io_output(test)),
         }
 
     def format_basic_test(self, test: BasicTestCase):
         if not test.runner:
-            return {
-                "output": "This test was not run."
-            }
+            return {"output": "This test was not run."}
         summary = []
         summary.extend(
             [
                 "=== test command ===",
-                test.command,
+                self.cutter(test.command),
                 "=== exit status ===",
-                str(test.runner.exit_status),
+                self.cutter(str(test.runner.exit_status)),
             ]
         )
         if self.verbose:
             summary.extend(
                 [
                     "=== stdout ===",
-                    test.runner.stdout,
+                    self.cutter(test.runner.stdout),
                     "=== stderr ===",
-                    test.runner.stderr,
+                    self.cutter(test.runner.stderr),
                 ]
             )
-        return {
-            "output": "\n".join(summary)
-        }
+        return {"output": "\n".join(summary)}
 
     def format_custom_test(self, test: CustomTestCase):
         if not test.result.has_run:
             output = "This test was not run."
         else:
-            output = test.result.output
+            output = self.cutter(test.result.output)
 
-        return {
-            "output": output
-        }
+        return {"output": output}
 
     def format_test(self, test: TestCaseBase):
         item = {
             "name": test.name,
-            "visibility": "visible" if not test.hidden else self.hidden_tests_setting,
         }
-        if not self.hide_points:
-            item["score"] = test.result.score
+        item["points"] = test.result.score
         if test.point_value is not None:
-            item["max_score"] = test.point_value
-        if test.result.passed is not None:
-            item["status"] = "passed" if test.result.passed else "failed"
+            item["max_points"] = test.point_value
 
         item.update(super().format_test(test))
         return item
@@ -234,13 +220,71 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
     def get_total_score(self):
         return sum(i.result.score for i in self.test_cases)
 
+    def get_full_score(self):
+        return sum(i.point_value for i in self.test_cases if i.point_value is not None)
+
+    def cutter(self, text: Optional[str]) -> str:
+        if text is None:
+            return ""
+        encoding = "utf-8"
+        placeholder = "...(omitted {count} lines)..."
+        raw_bytes = text.encode(encoding)
+        if len(raw_bytes) <= self.limitsize:
+            return text
+
+        lines = text.splitlines()
+
+        def line_size(line: str) -> int:
+            return len(line.encode(encoding)) + 1
+
+        head_lines = []
+        head_acc_bytes = 0
+        for ln in lines:
+            size_ln = line_size(ln)
+            if head_acc_bytes + size_ln <= self.headsize:
+                head_lines.append(ln)
+                head_acc_bytes += size_ln
+            else:
+                break
+
+        tail_lines = []
+        tail_acc_bytes = 0
+        for ln in reversed(lines):
+            size_ln = line_size(ln)
+            if tail_acc_bytes + size_ln <= self.tailsize:
+                tail_lines.append(ln)
+                tail_acc_bytes += size_ln
+            else:
+                break
+        tail_lines.reverse()
+
+        omitted_lines_count = len(lines) - len(head_lines) - len(tail_lines)
+        if omitted_lines_count > 0:
+            placeholder_line = placeholder.format(count=omitted_lines_count)
+        else:
+            placeholder_line = ""
+
+        if placeholder_line:
+            truncated_parts = head_lines + [placeholder_line] + tail_lines
+        else:
+            truncated_parts = head_lines
+            truncated_parts += tail_lines[len(head_lines) :]
+
+        final_text = "\n".join(part for part in truncated_parts if part != "")
+        final_bytes = final_text.encode(encoding)
+
+        if len(final_bytes) > self.limitsize:
+            final_text = "Text is too large to display.\n"
+
+        final_text = "[WARN]: Text too long, truncated.\n" + final_text
+        return final_text
+
     def execute(self):
         logger.info("Formatter running...")
         self.results = {
-            "output": self.message,
-            "visibility": self.visibility,
-            "stdout_visibility": self.stdout_visibility,
-            "score": self.get_total_score(),
+            "gradable": True,
+            "score": self.get_total_score() / self.get_full_score(),
+            "message": self.message,
             "tests": [self.format_test(i) for i in self.test_cases],
         }
 
@@ -249,7 +293,17 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
         logger.info("Formatter execution completed.")
         return self.results
 
-    def export(self, path="/autograder/results/results.json"):
+    def export(self, path="/autograder/results/results.json", limit: int = 2**30):
+        # NOTE: need better estimation
+        num_tests = sum(1 for _ in self.test_cases)
+        estimated_size = (limit - 10000) // num_tests // 3
+        self.limitsize = estimated_size
+        self.headsize = int(estimated_size * 0.1)
+        self.tailsize = int(estimated_size * 0.1)
+
+        dir_path = os.path.dirname(path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
         with open(path, "w+") as fp:
             json.dump(self.execute(), fp)
 

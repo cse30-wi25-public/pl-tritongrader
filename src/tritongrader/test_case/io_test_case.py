@@ -30,7 +30,7 @@ class IOTestCase(TestCaseBase):
         name: str = "Test Case",
         point_value: float = 1,
         timeout: float = TestCaseBase.DEFAULT_TIMEOUT,
-        arm: bool = True,
+        interpreter: Optional[str] = None,
         binary_io: bool = False,
         hidden: bool = False,
     ):
@@ -39,7 +39,7 @@ class IOTestCase(TestCaseBase):
         """
         super().__init__(name, point_value, timeout, hidden)
 
-        self.arm: bool = arm
+        self.interpreter: Optional[str] = interpreter
         self.binary_io: bool = binary_io
 
         self.command_path: str = command_path
@@ -55,7 +55,7 @@ class IOTestCase(TestCaseBase):
 
     def __str__(self):
         return (
-            f"{self.name} arm={self.arm} cmd_path={self.command_path} cmd={self.command} "
+            f"{self.name} interpreter={self.interpreter} cmd_path={self.command_path} cmd={self.command} "
             +
             f"input_path={self.input_path} exp_stdout_path={self.exp_stdout_path} exp_stderr_path={self.exp_stderr_path}"
         )
@@ -111,7 +111,7 @@ class IOTestCase(TestCaseBase):
         logger.info(f"Running {str(self)}")
         # if running in an ARM simulator, we cannot use the bash script
         # and must instead use the command inside directly.
-        exe = self.command if self.arm else self.command_path
+        exe = self.command if self.interpreter else self.command_path
         if self.input_path:
             exe += f" < {self.input_path}"
         return exe
@@ -129,7 +129,7 @@ class IOTestCase(TestCaseBase):
                 text=(not self.binary_io),
                 timeout=self.timeout,
                 print_command=True,
-                arm=self.arm,
+                interpreter=self.interpreter,
             )
             self.runner.run()
 
@@ -233,7 +233,7 @@ class IOTestCaseBulkLoader:
             timeout=timeout,
             binary_io=binary_io,
             hidden=hidden,
-            arm=self.autograder.arm,
+            interpreter=self.autograder.interpreter,
         )
 
         self.autograder.add_test(test_case)
