@@ -141,10 +141,10 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
         summary.append(f"{status_str} in {test.runner.running_time:.2f} ms.")
 
         if self.verbose:
-            summary.extend(["=== test command ===", test.command])
+            summary.extend(["=== test command ===", self.cutter(test.command)])
 
             if test.test_input is not None:
-                summary.extend(["=== test input ===", test.test_input])
+                summary.extend(["=== test input ===", self.cutter(test.test_input)])
             summary.extend(
                 [
                     "=== expected stdout ===",
@@ -296,7 +296,7 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
     def export(self, path="/autograder/results/results.json", limit: int = 2**30):
         # NOTE: need better estimation
         num_tests = sum(1 for _ in self.test_cases)
-        estimated_size = (limit - 10000) // num_tests // 3
+        estimated_size = (limit - 10000) // num_tests // 2
         self.limitsize = estimated_size
         self.headsize = int(estimated_size * 0.1)
         self.tailsize = int(estimated_size * 0.1)
