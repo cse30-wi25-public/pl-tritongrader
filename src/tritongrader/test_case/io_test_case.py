@@ -3,7 +3,7 @@ import traceback
 import logging
 import subprocess
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from tritongrader.test_case.test_case_base import TestCaseBase, TestResultBase
 from tritongrader.runner import CommandRunner
@@ -33,11 +33,12 @@ class IOTestCase(TestCaseBase):
         interpreter: Optional[str] = None,
         binary_io: bool = False,
         hidden: bool = False,
+        hidden_msg: str = "hidden test"
     ):
         """
         - timeout: timeout in seconds.
         """
-        super().__init__(name, point_value, timeout, hidden)
+        super().__init__(name, point_value, timeout, hidden, hidden_msg)
 
         self.interpreter: Optional[str] = interpreter
         self.binary_io: bool = binary_io
@@ -45,13 +46,13 @@ class IOTestCase(TestCaseBase):
         self.command_path: str = command_path
         self.command: str = ""
 
-        self.input_path: str = input_path if os.path.exists(input_path) else None
+        self.input_path: str | None = input_path if os.path.exists(input_path) else None
         self.exp_stdout_path: str = exp_stdout_path
         self.exp_stderr_path: str = exp_stderr_path
         self.exp_exit_status: Optional[int] = exp_exit_status
 
         self.result: IOTestResult = IOTestResult()
-        self.runner: CommandRunner = None
+        self.runner: CommandRunner | None = None
 
     def __str__(self):
         return (
@@ -193,10 +194,11 @@ class IOTestCaseBulkLoader:
         name: str,
         point_value: float = 1,
         hidden: bool = False,
-        timeout: float = None,
+        timeout: float | None = None,
         binary_io: bool = False,
         prefix: str = "",
         no_prefix: bool = False,
+        hidden_msg: str = "hidden test"
     ) -> "IOTestCaseBulkLoader":
         """
         - timeout: timeout in seconds.
@@ -234,6 +236,7 @@ class IOTestCaseBulkLoader:
             binary_io=binary_io,
             hidden=hidden,
             interpreter=self.autograder.interpreter,
+            hidden_msg=hidden_msg
         )
 
         self.autograder.add_test(test_case)
@@ -242,13 +245,14 @@ class IOTestCaseBulkLoader:
 
     def add_list(
         self,
-        test_list: Tuple[str, float],
+        test_list: List[Tuple[str, float]],
         prefix: str = "",
         hidden: bool = False,
-        timeout: float = None,
+        timeout: float | None = None,
         binary_io: bool = False,
+        hidden_msg: str = "hidden test"
     ):
         for name, point_value in test_list:
-            self.add(name, point_value, hidden, timeout, binary_io, prefix=prefix)
+            self.add(name, point_value, hidden, timeout, binary_io, prefix=prefix, hidden_msg=hidden_msg)
 
         return self

@@ -9,6 +9,7 @@ from tritongrader.test_case import TestCaseBase
 from tritongrader.test_case import IOTestCase
 from tritongrader.test_case import BasicTestCase
 from tritongrader.test_case import CustomTestCase
+from tritongrader.test_case import RealtimeTestCase
 
 logger = logging.getLogger("tritongrader.formatter")
 
@@ -19,6 +20,7 @@ class ResultsFormatterBase:
             IOTestCase: self.format_io_test,
             BasicTestCase: self.format_basic_test,
             CustomTestCase: self.format_custom_test,
+            RealtimeTestCase: self.format_realtime_test,
         }
         self.test_cases: List[TestCaseBase] = []
         ags = [src] if isinstance(src, Autograder) else src
@@ -41,11 +43,11 @@ class ResultsFormatterBase:
         raise NotImplementedError
 
 
-class GradescopeResultsFormatter(ResultsFormatterBase):
+class PrairielearnResultsFormatter(ResultsFormatterBase):
     def __init__(
         self,
         src: Union[Autograder, Iterable[Autograder]],
-        message: str = "",
+        message: str | None = None,
         visibility: str = "visible",
         stdout_visibility: str = "hidden",
         hidden_tests_setting: str = "hidden",
@@ -63,7 +65,7 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
         self.max_output_bytes: int = max_output_bytes
         self.verbose: bool = verbose
         self.html_diff: bool = html_diff
-        self.results: dict = None
+        self.results: dict | None = None
 
     def html_diff_make_table(
         self,
@@ -116,17 +118,19 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
 
         if test.result.error:
             # TODO report to Observer
-            return "\n".join(
+            error_msg = "=== Unexpected autograder runtime error!  Please notify your instructors. ==="
+            output = "\n".join(
                 [
-                    "=== Unexpected autograder runtime error!  Please notify your instructors. ===",
+                    error_msg,
                     "=== stdout ===",
                     self.cutter(test.actual_stdout),
                     "=== stderr ===",
                     self.cutter(test.actual_stderr),
                 ]
             )
+            return error_msg if test.hidden else output
         if test.result.timed_out:
-            return "\n".join(
+            output = "\n".join(
                 [
                     f"Test case timed out with limit = {test.timeout}.",
                     "== stdout ==",
@@ -135,6 +139,7 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
                     self.cutter(test.actual_stderr),
                 ]
             )
+            return test.hidden_msg if test.hidden else output
 
         status_str = "PASSED" if test.result.passed else "FAILED"
         summary = []
@@ -167,12 +172,78 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
                     ]
                 )
 
-        return "\n".join(summary)
+        return test.hidden_msg if test.hidden else "\n".join(summary)
 
     def format_io_test(self, test: IOTestCase):
         return {
-            "output_format": "html" if self.html_diff else "simple_format",
             "output": (self.generate_html_diff(test) if self.html_diff else self.basic_io_output(test)),
+        }
+
+    def realtime_output(self, test: RealtimeTestCase):
+        if not test.result.has_run or not test.runner:
+            return "This test was not run."
+
+        if test.result.error:
+            # TODO report to Observer
+            error_msg = "=== Unexpected autograder runtime error!  Please notify your instructors. ==="
+            output = "\n".join(
+                [
+                    error_msg,
+                    "=== stdout ===",
+                    self.cutter(test.actual_stdout),
+                    "=== stderr ===",
+                    self.cutter(test.actual_stderr),
+                ]
+            )
+            return error_msg if test.hidden else output
+        if test.result.timed_out:
+            output = "\n".join(
+                [
+                    f"Test case timed out with limit = {test.timeout}.",
+                    "== stdout ==",
+                    self.cutter(test.actual_stdout),
+                    "== stderr ==",
+                    self.cutter(test.actual_stderr),
+                ]
+            )
+            return test.hidden_msg if test.hidden else output
+
+        status_str = "PASSED" if test.result.passed else "FAILED"
+        summary = []
+        summary.append(f"{status_str} in {test.runner.running_time:.2f} ms.")
+
+        if self.verbose:
+            summary.extend(["=== test command ===", self.cutter(test.command)])
+
+            if test.test_input is not None:
+                summary.extend(["=== test input ===", self.cutter(test.test_input)])
+            summary.extend(
+                [
+                    "=== expected stdout ===",
+                    self.cutter(test.expected_stdout),
+                    "=== expected stderr ===",
+                    self.cutter(test.expected_stderr),
+                    "=== expected exit status ===",
+                    self.cutter(str(test.exp_exit_status)),
+                ]
+            )
+            if not test.result.passed:
+                summary.extend(
+                    [
+                        "=== your stdout ===",
+                        self.cutter(test.actual_stdout),
+                        "=== your stderr ===",
+                        self.cutter(test.actual_stderr),
+                        "=== your exit status ===",
+                        self.cutter(str(test.exit_status)),
+                    ]
+                )
+
+        return test.hidden_msg if test.hidden else "\n".join(summary)
+
+    def format_realtime_test(self, test: RealtimeTestCase):
+        return {
+            "output": self.realtime_output(test),
         }
 
     def format_basic_test(self, test: BasicTestCase):
@@ -284,16 +355,18 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
         self.results = {
             "gradable": True,
             "score": self.get_total_score() / self.get_full_score(),
-            "message": self.message,
+            **({"message": self.message} if self.message is not None else {}),
             "tests": [self.format_test(i) for i in self.test_cases],
         }
 
+        # D_BEGIN: necessary?
         if self.hide_points:
             self.results["score"] = 0
+        # D_END:
         logger.info("Formatter execution completed.")
         return self.results
 
-    def export(self, path="/autograder/results/results.json", limit: int = 2**30):
+    def export(self, path="/grade/results/results.json", limit: int = 2**30):
         # NOTE: need better estimation
         num_tests = sum(1 for _ in self.test_cases)
         estimated_size = (limit - 10000) // num_tests // 2
@@ -309,5 +382,5 @@ class GradescopeResultsFormatter(ResultsFormatterBase):
 
 
 if __name__ == "__main__":
-    formatter = GradescopeResultsFormatter()
+    formatter = PrairielearnResultsFormatter()
     formatter.formatters[IOTestCase](None)
