@@ -32,6 +32,7 @@ class Autograder:
         name: str,
         submission_path: str,
         tests_path: str,
+        working_directory: str = "",
         required_files: List[str] = [],
         supplied_files: List[str] = [],
         verbose_rubric: bool = False,
@@ -51,6 +52,7 @@ class Autograder:
 
         self.tests_path = tests_path
         self.submission_path = submission_path
+        self.working_directory = working_directory
 
         self.interpreter = interpreter
         self.required_files = required_files
@@ -226,6 +228,7 @@ class Autograder:
         if not self.reference_path or not self.reference_build_command:
             return
 
+        os.makedirs(os.path.join(self.sandbox_reference.name, self.working_directory), exist_ok=True)
         for f in os.listdir(self.reference_path):
             self.copy2sandbox(self.sandbox_reference, self.reference_path, f)
 
@@ -249,15 +252,17 @@ class Autograder:
 
         if self.reference_path and self.reference_build_command:
             logger.info(f"Building {self.name} reference in {self.sandbox_reference.name}...")
+            os.makedirs(os.path.join(self.sandbox_reference.name, self.working_directory), exist_ok=True)
             cwd = os.getcwd()
-            os.chdir(self.sandbox_reference.name)
+            os.chdir(os.path.join(self.sandbox_reference.name, self.working_directory))
             self._execute_reference()
             logger.info(f"Finished building {self.name} reference. Returning to {cwd}")
             os.chdir(cwd)
 
         logger.info(f"Running {self.name} test(s) in {self.sandbox.name}...")
+        os.makedirs(os.path.join(self.sandbox.name, self.working_directory), exist_ok=True)
         cwd = os.getcwd()
-        os.chdir(self.sandbox.name)
+        os.chdir(os.path.join(self.sandbox.name, self.working_directory))
         self._execute()
         logger.info(f"Finished running {self.name} test(s). Returning to {cwd}")
         os.chdir(cwd)
