@@ -17,14 +17,12 @@ class TestCaseBase:
         point_value: float = 1,
         timeout: float = DEFAULT_TIMEOUT,
         hidden: bool = False,
-        hidden_msg: str = "hidden test"
     ):
         self.name: str = name
         self.point_value: float = point_value
         self.timeout: float = timeout
         self.hidden: bool = hidden
         self.result: TestResultBase = None
-        self.hidden_msg: str = hidden_msg
 
     def execute(self) -> TestResultBase:
         raise NotImplementedError
