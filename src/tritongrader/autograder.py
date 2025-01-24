@@ -5,6 +5,8 @@ import platform
 
 from tempfile import TemporaryDirectory
 from typing import List, Optional
+from tritongrader.runner import CommandRunner
+import subprocess
 
 from tritongrader.test_case import (
     TestCaseBase,
@@ -12,6 +14,7 @@ from tritongrader.test_case import (
     BasicTestCase,
     CustomTestCase,
     CustomTestResult,
+    RealtimeTestCaseBulkLoader,
 )
 
 logger = logging.getLogger("tritongrader.autograder")
@@ -29,6 +32,7 @@ class Autograder:
         name: str,
         submission_path: str,
         tests_path: str,
+        working_directory: str = "",
         required_files: List[str] = [],
         supplied_files: List[str] = [],
         verbose_rubric: bool = False,
@@ -36,6 +40,8 @@ class Autograder:
         compile_points: int = 0,
         missing_files_check: bool = True,
         interpreter: Optional[str] = None,
+        reference_path: str | None = None,
+        reference_build_command: str | None = None,
     ):
         """
         Note: `build_command` must be given for compilation to happen; there is not implicit build
@@ -46,6 +52,7 @@ class Autograder:
 
         self.tests_path = tests_path
         self.submission_path = submission_path
+        self.working_directory = working_directory
 
         self.interpreter = interpreter
         self.required_files = required_files
@@ -53,10 +60,14 @@ class Autograder:
         self.verbose_rubric = verbose_rubric
         self.compile_points = compile_points
 
+        self.reference_path = reference_path
+        self.reference_build_command = reference_build_command
+
         self.test_cases: List[TestCaseBase] = []
 
         # A sandbox directory where submission and test files will be copied to.
         self.sandbox: TemporaryDirectory = self.create_sandbox_directory()
+        self.sandbox_reference: TemporaryDirectory = self.create_sandbox_directory()
 
         self.missing_files_check_test_case = None
         if missing_files_check:
@@ -103,7 +114,7 @@ class Autograder:
             interpreter=self.interpreter,
         )
 
-    def create_sandbox_directory(self) -> str:
+    def create_sandbox_directory(self) -> TemporaryDirectory:
         tmpdir = TemporaryDirectory(prefix="Autograder_")
         logger.info(f"Sandbox created at {tmpdir.name}")
         return tmpdir
@@ -165,9 +176,23 @@ class Autograder:
             binary_io=binary_io,
         )
 
-    def copy2sandbox(self, src_dir, item):
+    def realtime_tests_bulk_loader(
+        self,
+        generator: str,
+        prefix: str = "",
+        default_timeout: float = 3,
+    ) -> RealtimeTestCaseBulkLoader:
+        return RealtimeTestCaseBulkLoader(
+            autograder=self,
+            generator=generator,
+            prefix=prefix,
+            default_timeout=default_timeout,
+            interpreter=self.interpreter
+        )
+
+    def copy2sandbox(self, sandbox, src_dir, item):
         path = os.path.realpath(os.path.join(src_dir, item))
-        dst = os.path.join(self.sandbox.name, item)
+        dst = os.path.join(sandbox.name, item)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         if os.path.isfile(path):
             shutil.copy2(path, dst)
@@ -178,11 +203,11 @@ class Autograder:
 
     def copy_submission_files(self):
         for f in self.required_files:
-            self.copy2sandbox(self.submission_path, f)
+            self.copy2sandbox(self.sandbox, self.submission_path, f)
 
     def copy_supplied_files(self):
         for f in self.supplied_files:
-            self.copy2sandbox(self.tests_path, f)
+            self.copy2sandbox(self.sandbox, self.tests_path, f)
 
     def _execute(self):
         self.copy_submission_files()
@@ -199,11 +224,46 @@ class Autograder:
                 logger.info("Failed to compile. Aborting autograder.")
                 break
 
+    def _execute_reference(self):
+        if not self.reference_path or not self.reference_build_command:
+            return
+
+        os.makedirs(os.path.join(self.sandbox_reference.name, self.working_directory), exist_ok=True)
+        for f in os.listdir(self.reference_path):
+            self.copy2sandbox(self.sandbox_reference, self.reference_path, f)
+
+        try:
+            runner = CommandRunner(
+                command=self.reference_build_command,
+                capture_output=True,
+                timeout=10,
+            )
+            runner.run()
+            if runner.exit_status != 0:
+                logger.info(f"{self.name} reference build failed!")
+                raise Exception(f"{self.name} reference build failed!")
+        except subprocess.TimeoutExpired:
+            logger.info(f"{self.name} reference build time out!")
+            raise Exception(f"{self.name} reference build time out!")
+
+
     def execute(self):
         logger.debug(platform.uname())
+
+        if self.reference_path and self.reference_build_command:
+            logger.info(f"Building {self.name} reference in {self.sandbox_reference.name}...")
+            os.makedirs(os.path.join(self.sandbox_reference.name, self.working_directory), exist_ok=True)
+            cwd = os.getcwd()
+            os.chdir(os.path.join(self.sandbox_reference.name, self.working_directory))
+            self._execute_reference()
+            logger.info(f"Finished building {self.name} reference. Returning to {cwd}")
+            os.chdir(cwd)
+
         logger.info(f"Running {self.name} test(s) in {self.sandbox.name}...")
+        os.makedirs(os.path.join(self.sandbox.name, self.working_directory), exist_ok=True)
         cwd = os.getcwd()
-        os.chdir(self.sandbox.name)
+        os.chdir(os.path.join(self.sandbox.name, self.working_directory))
         self._execute()
         logger.info(f"Finished running {self.name} test(s). Returning to {cwd}")
         os.chdir(cwd)
+
