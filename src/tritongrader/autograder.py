@@ -224,6 +224,10 @@ class Autograder:
                 logger.info("Failed to compile. Aborting autograder.")
                 break
 
+            if test.early_stop and not test.result.passed:
+                logger.info("Early stop. Aborting autograder.")
+                break
+
     def _execute_reference(self):
         if not self.reference_path or not self.reference_build_command:
             return
