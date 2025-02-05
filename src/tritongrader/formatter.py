@@ -297,11 +297,23 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
     def cutter(self, text: Optional[str]) -> str:
         if text is None:
             return ""
+
+        is_binary = False
+        if isinstance(text, bytes):
+            try:
+                text = text.decode("utf-8", errors="strict")
+                is_binary = False
+            except UnicodeDecodeError:
+                is_binary = True
+                text = str(text)
+
+        final_prefix = "[WARN]: Binary data detected.\n" if is_binary else ""
+
         encoding = "utf-8"
         placeholder = "...(omitted {count} lines)..."
         raw_bytes = text.encode(encoding)
         if len(raw_bytes) <= self.limitsize:
-            return text
+            return final_prefix + text
 
         lines = text.splitlines()
 
@@ -348,7 +360,7 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
             final_text = "Text is too large to display.\n"
 
         final_text = "[WARN]: Text too long, truncated.\n" + final_text
-        return final_text
+        return final_prefix + final_text
 
     def execute(self):
         logger.info("Formatter running...")

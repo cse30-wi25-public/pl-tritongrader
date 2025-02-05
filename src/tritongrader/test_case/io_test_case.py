@@ -102,9 +102,9 @@ class IOTestCase(TestCaseBase):
         if not self.input_path:
             return None
 
-        # test input is passed in via command line ('<'), which
-        # should always be text, so we don't use open_mode() here.
-        with open(self.input_path, "r") as fp:
+        # FIXME: test input is passed in via command line ('<'), which
+        # FIXME: should always be text, so we don't use open_mode() here.
+        with open(self.input_path, self.open_mode) as fp:
             return fp.read()
 
     def get_execute_command(self):

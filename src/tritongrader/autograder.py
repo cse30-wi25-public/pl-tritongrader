@@ -180,12 +180,14 @@ class Autograder:
         self,
         generator: str,
         prefix: str = "",
+        binary_io: bool = False,
         default_timeout: float = 3,
     ) -> RealtimeTestCaseBulkLoader:
         return RealtimeTestCaseBulkLoader(
             autograder=self,
             generator=generator,
             prefix=prefix,
+            binary_io=binary_io,
             default_timeout=default_timeout,
             interpreter=self.interpreter
         )

@@ -33,6 +33,7 @@ class RealtimeTestCase(TestCaseBase):
         point_value: float = 1,
         timeout: float = TestCaseBase.DEFAULT_TIMEOUT,
         interpreter: str | None = None,
+        binary_io: bool = False,
         hidden: bool = False,
         hidden_msg: str = "hidden tests"
     ):
@@ -43,6 +44,7 @@ class RealtimeTestCase(TestCaseBase):
         self.hidden_msg: str = hidden_msg
         self.name: str = name
         self.interpreter: str | None = interpreter
+        self.binary_io: bool = binary_io
         self.data: dict = {"id": id, "name": name, "point_value": point_value, "timeout": timeout}
         self.added_files: List[str] = []
         self.made_dirs: List[str] = []
@@ -51,17 +53,25 @@ class RealtimeTestCase(TestCaseBase):
         self.runner: CommandRunner | None = None
 
     @property
+    def open_mode(self):
+        return "r" if not self.binary_io else "rb"
+
+    @property
+    def write_mode(self):
+        return "w" if not self.binary_io else "wb"
+
+    @property
     def expected_stdout(self):
         if not self.exp_stdout_path:
             return None
-        with open(self.exp_stdout_path, "r") as fp:
+        with open(self.exp_stdout_path, self.open_mode) as fp:
             return fp.read()
 
     @property
     def expected_stderr(self):
         if not self.exp_stderr_path:
             return None
-        with open(self.exp_stderr_path, "r") as fp:
+        with open(self.exp_stderr_path, self.open_mode) as fp:
             return fp.read()
 
     @property
@@ -106,7 +116,7 @@ class RealtimeTestCase(TestCaseBase):
         return generate_func
 
     def copy2sandbox(self, sandbox):
-        with open(os.path.join(sandbox.name, self.filename_stdin), "w") as f:
+        with open(os.path.join(sandbox.name, self.filename_stdin), self.write_mode) as f:
             self.added_files.append(os.path.join(sandbox.name, self.filename_stdin))
             f.write(self.data["stdin"])
 
@@ -117,7 +127,7 @@ class RealtimeTestCase(TestCaseBase):
                 if dir_part:
                     self.made_dirs.append(dir_part)
                     os.makedirs(dir_part, exist_ok=True)
-                with open(fullpath, "w") as f:
+                with open(fullpath, self.write_mode) as f:
                     self.added_files.append(fullpath)
                     f.write(content)
 
@@ -140,9 +150,9 @@ class RealtimeTestCase(TestCaseBase):
         self.added_files.append(self.exp_stdout_path)
         self.added_files.append(self.exp_stderr_path)
         if "stdout" in self.data and "stderr" in self.data and "exitcode" in self.data:
-            with open(self.exp_stdout_path, "w") as f:
+            with open(self.exp_stdout_path, self.write_mode) as f:
                 f.write(self.data["stdout"])
-            with open(self.exp_stderr_path, "w") as f:
+            with open(self.exp_stderr_path, self.write_mode) as f:
                 f.write(self.data["stderr"])
             self.exp_exit_status = self.data["exitcode"]
         else:
@@ -153,7 +163,7 @@ class RealtimeTestCase(TestCaseBase):
                 runner = CommandRunner(
                     command=cmd,
                     capture_output=False,
-                    text=True,
+                    text=(not self.binary_io),
                     timeout=self.timeout,
                     print_command=False,
                     interpreter=self.interpreter,
@@ -210,7 +220,7 @@ class RealtimeTestCase(TestCaseBase):
             self.runner = CommandRunner(
                 command=self.get_execute_command(self.sandbox),
                 capture_output=True,
-                text=True,
+                text=(not self.binary_io),
                 timeout=self.timeout,
                 print_command=False,
                 interpreter=self.interpreter,
@@ -238,7 +248,7 @@ class RealtimeTestCase(TestCaseBase):
 
 
 class RealtimeTestCaseBulkLoader:
-    def __init__(self, autograder, generator: str, prefix: str = "", default_timeout: float = 10, interpreter: str | None = None):
+    def __init__(self, autograder, generator: str, prefix: str = "", default_timeout: float = 10, interpreter: str | None = None, binary_io: bool = False):
         self.autograder = autograder
         self.generator: str = generator
         self.sandbox: TemporaryDirectory = autograder.sandbox
@@ -246,6 +256,7 @@ class RealtimeTestCaseBulkLoader:
         self.default_timeout: float = default_timeout
         self.prefix: str = prefix
         self.interpreter: str | None = interpreter
+        self.binary_io: bool = binary_io
 
     def add(
         self,
@@ -256,6 +267,7 @@ class RealtimeTestCaseBulkLoader:
         prefix: str = "",
         timeout: float | None = None,
         hidden_msg: str = "hidden test",
+        binary_io: bool = False,
     ):
         if timeout is None:
             timeout = self.default_timeout
@@ -270,6 +282,7 @@ class RealtimeTestCaseBulkLoader:
             interpreter=self.interpreter,
             hidden=hidden,
             hidden_msg=hidden_msg,
+            binary_io=binary_io,
         )
 
         self.autograder.add_test(test_case)
@@ -282,6 +295,7 @@ class RealtimeTestCaseBulkLoader:
         hidden: bool = False,
         timeout: float | None = None,
         hidden_msg: str = "hidden test",
+        binary_io: bool = False,
     ):
         for i, (name, point_value) in enumerate(test_list):
             self.add(
@@ -292,5 +306,6 @@ class RealtimeTestCaseBulkLoader:
                 timeout=timeout,
                 prefix=prefix,
                 hidden_msg=hidden_msg,
+                binary_io=binary_io,
             )
         return self
