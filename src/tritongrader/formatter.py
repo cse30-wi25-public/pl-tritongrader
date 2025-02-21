@@ -180,7 +180,7 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         }
         desc = test.description
         if desc != "":
-            obj["description"] = desc
+            obj["message"] = desc
         return obj
 
 
@@ -252,7 +252,7 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         }
         desc = test.description
         if desc != "":
-            obj["description"] = desc
+            obj["message"] = desc
         return obj
 
     def format_basic_test(self, test: BasicTestCase):
