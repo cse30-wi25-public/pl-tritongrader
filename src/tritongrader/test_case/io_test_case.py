@@ -27,6 +27,7 @@ class IOTestCase(TestCaseBase):
         exp_stdout_path: str,
         exp_stderr_path: str,
         exp_exit_status: Optional[int],
+        note_path: str = "",
         name: str = "Test Case",
         point_value: float = 1,
         timeout: float = TestCaseBase.DEFAULT_TIMEOUT,
@@ -50,6 +51,8 @@ class IOTestCase(TestCaseBase):
         self.exp_stdout_path: str = exp_stdout_path
         self.exp_stderr_path: str = exp_stderr_path
         self.exp_exit_status: Optional[int] = exp_exit_status
+
+        self.note_path = note_path
 
         self.result: IOTestResult = IOTestResult()
         self.runner: CommandRunner | None = None
@@ -90,6 +93,16 @@ class IOTestCase(TestCaseBase):
         if not self.runner:
             raise Exception("no runner initialized")
         return self.runner.stderr
+
+    @property
+    def description(self) -> str:
+        if not self.runner:
+            raise Exception("no runner initialized")
+        if os.path.exists(self.note_path):
+            with open(self.note_path, "r") as fp:
+                return fp.read()
+        else:
+            return ""
 
     def extract_command_from_bash_file(self, bash_file_path):
         # Command files cannot be binary. Can use "r" mode directly here.
@@ -167,6 +180,7 @@ class IOTestCaseBulkLoader:
         expected_stdout_prefix: Optional[str] = "out-",
         expected_stderr_prefix: Optional[str] = "err-",
         expected_exit_status_prefix: Optional[str] = "status-",
+        note_prefix: Optional[str] = "note-",
         prefix: str = "",
         default_timeout: float = 500,
         binary_io: bool = False,
@@ -185,6 +199,7 @@ class IOTestCaseBulkLoader:
         self.expected_stdout_prefix = expected_stdout_prefix
         self.expected_stderr_prefix = expected_stderr_prefix
         self.expected_exit_status_prefix: Optional[str] = expected_exit_status_prefix
+        self.note_prefix = note_prefix
         self.prefix = prefix
         self.default_timeout = default_timeout
         self.binary_io = binary_io
@@ -222,6 +237,7 @@ class IOTestCaseBulkLoader:
                 exit_status = int(fin.read().strip())
         else:
             exit_status = None
+        note = os.path.join(self.commands_path, self.note_prefix + name)
 
         test_name = name if no_prefix else self.prefix + prefix + name
         test_case = IOTestCase(
@@ -232,6 +248,7 @@ class IOTestCaseBulkLoader:
             exp_stdout_path=stdout,
             exp_stderr_path=stderr,
             exp_exit_status=exit_status,
+            note_path=note,
             timeout=timeout,
             binary_io=binary_io,
             hidden=hidden,

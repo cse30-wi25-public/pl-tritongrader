@@ -175,9 +175,14 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         return test.hidden_msg if test.hidden else "\n".join(summary)
 
     def format_io_test(self, test: IOTestCase):
-        return {
+        obj = {
             "output": (self.generate_html_diff(test) if self.html_diff else self.basic_io_output(test)),
         }
+        desc = test.description
+        if desc != "":
+            obj["desciption"] = desc
+        return obj
+
 
     def realtime_output(self, test: RealtimeTestCase):
         if not test.result.has_run or not test.runner:
@@ -242,9 +247,13 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         return test.hidden_msg if test.hidden else "\n".join(summary)
 
     def format_realtime_test(self, test: RealtimeTestCase):
-        return {
+        obj = {
             "output": self.realtime_output(test),
         }
+        desc = test.description
+        if desc != "":
+            obj["desciption"] = desc
+        return obj
 
     def format_basic_test(self, test: BasicTestCase):
         if not test.runner:

@@ -28,6 +28,7 @@ class RealtimeTestCase(TestCaseBase):
         generator: str,
         sandbox: TemporaryDirectory,
         sandbox_reference: TemporaryDirectory,
+        tests_path: str,
         id: int = -1,
         name: str = "Test Case",
         point_value: float = 1,
@@ -45,7 +46,7 @@ class RealtimeTestCase(TestCaseBase):
         self.name: str = name
         self.interpreter: str | None = interpreter
         self.binary_io: bool = binary_io
-        self.data: dict = {"id": id, "name": name, "point_value": point_value, "timeout": timeout}
+        self.data: dict = {"id": id, "name": name, "point_value": point_value, "timeout": timeout, "tests_path": tests_path}
         self.added_files: List[str] = []
         self.made_dirs: List[str] = []
 
@@ -210,6 +211,7 @@ class RealtimeTestCase(TestCaseBase):
         self.filename_stdin = str(uuid.uuid4()).replace("-", "")
         self.filename_stdout = str(uuid.uuid4()).replace("-", "")
         self.filename_stderr = str(uuid.uuid4()).replace("-", "")
+        self.description = self.data.get("note", "")
         self.copy2sandbox(self.sandbox)
         self.copy2sandbox(self.sandbox_reference)
         self.write_out_err()
@@ -275,6 +277,7 @@ class RealtimeTestCaseBulkLoader:
             generator=self.generator,
             sandbox=self.sandbox,
             sandbox_reference=self.sandbox_reference,
+            tests_path=self.autograder.tests_path,
             id=id,
             name=prefix + name,
             point_value=point_value,
