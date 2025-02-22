@@ -133,9 +133,15 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
             output = "\n".join(
                 [
                     f"Test case timed out with limit = {test.timeout}.",
-                    "== stdout ==",
+                    "=== expected stdout ===",
+                    self.cutter(test.expected_stdout),
+                    "=== expected stderr ===",
+                    self.cutter(test.expected_stderr),
+                    "=== expected exit status ===",
+                    self.cutter(str(test.exp_exit_status)),
+                    "=== your stdout ===",
                     self.cutter(test.actual_stdout),
-                    "== stderr ==",
+                    "=== your stderr ===",
                     self.cutter(test.actual_stderr),
                 ]
             )
@@ -205,9 +211,15 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
             output = "\n".join(
                 [
                     f"Test case timed out with limit = {test.timeout}.",
-                    "== stdout ==",
+                    "=== expected stdout ===",
+                    self.cutter(test.expected_stdout),
+                    "=== expected stderr ===",
+                    self.cutter(test.expected_stderr),
+                    "=== expected exit status ===",
+                    self.cutter(str(test.exp_exit_status)),
+                    "=== your stdout ===",
                     self.cutter(test.actual_stdout),
-                    "== stderr ==",
+                    "=== your stderr ===",
                     self.cutter(test.actual_stderr),
                 ]
             )
