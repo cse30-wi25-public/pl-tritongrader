@@ -184,7 +184,10 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         obj = {
             "output": (self.generate_html_diff(test) if self.html_diff else self.basic_io_output(test)),
         }
-        desc = test.description
+        try:
+            desc = test.description
+        except:
+            desc = ""
         if desc != "":
             obj["message"] = desc
         return obj
@@ -262,7 +265,10 @@ class PrairielearnResultsFormatter(ResultsFormatterBase):
         obj = {
             "output": self.realtime_output(test),
         }
-        desc = test.description
+        try:
+            desc = test.description
+        except:
+            desc = ""
         if desc != "":
             obj["message"] = desc
         return obj
